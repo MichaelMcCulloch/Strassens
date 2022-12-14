@@ -3,5 +3,6 @@
         "activityBar.background": "#352D0D",
         "titleBar.activeBackground": "#4A3F12",
         "titleBar.activeForeground": "#FDFBF5"
-    }
+    },
+    // "rust-analyzer.cargo.target": "aarch64-linux-android",
 }
