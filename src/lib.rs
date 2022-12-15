@@ -187,8 +187,8 @@ fn add(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     let mut C = vec![vec![0.0; n]; n];
     'outer: for i in 0..n {
         for j in (0..n).step_by(4) {
-            if !A[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
-                || !B[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
+            if !A[i][j..j + 4].iter().all(|f| f.lt(&1e-20f32))
+                || !B[i][j..j + 4].iter().all(|f| f.lt(&1e-20f32))
             {
                 unsafe {
                     let a = vld1q_f32(A[i][j..].as_ptr());
@@ -212,8 +212,8 @@ fn add(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     let mut C = vec![vec![0.0; n]; n];
     'outer: for i in 0..n {
         for j in (0..n).step_by(8) {
-            if !A[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
-                || !B[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
+            if !A[i][j..j + 8].iter().all(|f| f.lt(&1e-20f32))
+                || !B[i][j..j + 8].iter().all(|f| f.lt(&1e-20f32))
             {
                 unsafe {
                     let a = _mm256_loadu_ps(A[i][j..].as_ptr());
@@ -237,8 +237,8 @@ fn sub(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     let mut C = vec![vec![0.0; n]; n];
     'outer: for i in 0..n {
         for j in (0..n).step_by(4) {
-            if !A[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
-                || !B[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
+            if !A[i][j..j + 4].iter().all(|f| f.lt(&1e-20f32))
+                || !B[i][j..j + 4].iter().all(|f| f.lt(&1e-20f32))
             {
                 unsafe {
                     let a = vld1q_f32(A[i][j..].as_ptr());
@@ -262,8 +262,8 @@ fn sub(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     let mut C = vec![vec![0.0; n]; n];
     'outer: for i in 0..n {
         for j in (0..n).step_by(8) {
-            if !A[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
-                || !B[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
+            if !A[i][j..j + 8].iter().all(|f| f.lt(&1e-20f32))
+                || !B[i][j..j + 8].iter().all(|f| f.lt(&1e-20f32))
             {
                 unsafe {
                     let a = _mm256_loadu_ps(A[i][j..j + 8].as_ptr());
@@ -320,7 +320,7 @@ fn find_last_nonzero_row_col(matrix: &Vec<Vec<f32>>) -> Option<(usize, usize)> {
     let mut ret = Option::None;
     let mut row = matrix.len();
     for i in (0..matrix.len()).rev() {
-        if matrix[i].iter().all(|f| f.le(&1e-10f32)) {
+        if matrix[i].iter().all(|f| f.le(&1e-20f32)) {
             row -= 1;
         } else {
             break;
@@ -328,7 +328,7 @@ fn find_last_nonzero_row_col(matrix: &Vec<Vec<f32>>) -> Option<(usize, usize)> {
     }
     let mut col = matrix[0].len();
     for i in (0..matrix[0].len()).rev() {
-        if matrix.iter().all(|f| f[i].le(&1e-10f32)) {
+        if matrix.iter().all(|f| f[i].le(&1e-20f32)) {
             col -= 1;
         } else {
             break;
@@ -389,15 +389,14 @@ mod tests {
         let A = vec![vec![1.0, 2.0], vec![3.0, 4.0]];
         let B = vec![vec![5.0, 6.0], vec![7.0, 8.0]];
         let expected_result = vec![vec![19.0, 22.0], vec![43.0, 50.0]];
-        let result = strassens(&A, &B);
+        let result = strassens_matmul(&A, &B);
         assert_eq!(result, expected_result,);
     }
     #[test]
     fn test_strassens_algorithm_large() {
         let A = generate(4096, 4096);
         let B = generate(4096, 4096);
-        let expected_result = generate(10, 10);
-        let result = strassens(&A, &B);
+        let result = strassens_matmul(&A, &B);
 
         assert_eq!(result.len(), 4096,);
         assert_eq!(result[0].len(), 4096,);
@@ -407,9 +406,10 @@ mod tests {
     fn test_strassens_algorithm_use_case() {
         let A = generate(80, 201);
         let B = generate(201, 3000);
-        let expected_result = generate(10, 10);
-        let result = strassens(&A, &B);
-        assert_eq!(result, expected_result,);
+        let result = strassens_matmul(&A, &B);
+        assert_eq!(result.len(), 80,);
+        assert_eq!(result[0].len(), 80,);
+        assert!(result.iter().all(|v| v.iter().all(|f| f.eq(&4096.0f32,))));
     }
     #[test]
     fn test_unpad_matrices() {
