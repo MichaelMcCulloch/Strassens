@@ -124,13 +124,36 @@ fn strassens(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     let (A11, A12, A21, A22, B11, B12, B21, B22) = partition(A, B);
 
     // Step 3: Define intermediate matrices
-    let M1 = strassens(&add(&A11, &A22), &add(&B11, &B22));
-    let M2 = strassens(&add(&A21, &A22), &B11);
-    let M3 = strassens(&A11, &sub(&B12, &B22));
-    let M4 = strassens(&A22, &sub(&B21, &B11));
-    let M5 = strassens(&add(&A11, &A12), &B22);
-    let M6 = strassens(&sub(&A21, &A11), &add(&B11, &B12));
-    let M7 = strassens(&sub(&A12, &A22), &add(&B21, &B22));
+
+    let (M1, (M2, (M3, (M4, (M5, (M6, (M7))))))) = rayon::join(
+        || strassens(&add(&A11, &A22), &add(&B11, &B22)),
+        || {
+            rayon::join(
+                || strassens(&add(&A21, &A22), &B11),
+                || {
+                    rayon::join(
+                        || strassens(&A11, &sub(&B12, &B22)),
+                        || {
+                            rayon::join(
+                                || strassens(&A22, &sub(&B21, &B11)),
+                                || {
+                                    rayon::join(
+                                        || strassens(&add(&A11, &A12), &B22),
+                                        || {
+                                            rayon::join(
+                                                || strassens(&sub(&A21, &A11), &add(&B11, &B12)),
+                                                || strassens(&sub(&A12, &A22), &add(&B21, &B22)),
+                                            )
+                                        },
+                                    )
+                                },
+                            )
+                        },
+                    )
+                },
+            )
+        },
+    );
 
     // Step 4: Compute the submatrices of the result matrix
     let C11 = add(&sub(&add(&M1, &M4), &M5), &M7);
@@ -156,33 +179,25 @@ fn strassens_matmul(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     C
 }
 
-// // Function to add two matrices
-// fn add(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
-//     let n = A.len();
-//     let mut C = vec![vec![0.0; n]; n];
-//     for i in 0..n {
-//         for j in 0..n {
-//             let a = A[i][j];
-//             let b = B[i][j];
-//             C[i][j] = a + b;
-//         }
-//     }
-//     C
-// }
-
 #[cfg(target_arch = "aarch64")]
 fn add(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     use std::arch::aarch64::*;
 
     let n = A.len();
     let mut C = vec![vec![0.0; n]; n];
-    for i in 0..n {
+    'outer: for i in 0..n {
         for j in (0..n).step_by(4) {
-            unsafe {
-                let a = vld1q_f32(A[i][j..].as_ptr());
-                let b = vld1q_f32(B[i][j..].as_ptr());
-                let c = vaddq_f32(a, b);
-                vst1q_f32(C[i][j..].as_mut_ptr(), c);
+            if !A[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
+                || !B[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
+            {
+                unsafe {
+                    let a = vld1q_f32(A[i][j..].as_ptr());
+                    let b = vld1q_f32(B[i][j..].as_ptr());
+                    let c = vaddq_f32(a, b);
+                    vst1q_f32(C[i][j..].as_mut_ptr(), c);
+                }
+            } else {
+                break 'outer;
             }
         }
     }
@@ -195,30 +210,24 @@ fn add(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
 
     let n = A.len();
     let mut C = vec![vec![0.0; n]; n];
-    for i in 0..n {
+    'outer: for i in 0..n {
         for j in (0..n).step_by(8) {
-            unsafe {
-                let a = _mm256_loadu_ps(A[i][j..].as_ptr());
-                let b = _mm256_loadu_ps(B[i][j..].as_ptr());
-                let c = _mm256_add_ps(a, b);
-                _mm256_storeu_ps(C[i][j..].as_mut_ptr(), c);
+            if !A[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
+                || !B[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
+            {
+                unsafe {
+                    let a = _mm256_loadu_ps(A[i][j..].as_ptr());
+                    let b = _mm256_loadu_ps(B[i][j..].as_ptr());
+                    let c = _mm256_add_ps(a, b);
+                    _mm256_storeu_ps(C[i][j..].as_mut_ptr(), c);
+                }
+            } else {
+                break 'outer;
             }
         }
     }
     C
 }
-
-// // Function to subtract two matrices
-// fn sub(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
-//     let n = A.len();
-//     let mut C = vec![vec![0.0; n]; n];
-//     for i in 0..n {
-//         for j in 0..n {
-//             C[i][j] = A[i][j] - B[i][j];
-//         }
-//     }
-//     C
-// }
 
 #[cfg(target_arch = "aarch64")]
 fn sub(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
@@ -226,13 +235,19 @@ fn sub(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
 
     let n = A.len();
     let mut C = vec![vec![0.0; n]; n];
-    for i in 0..n {
+    'outer: for i in 0..n {
         for j in (0..n).step_by(4) {
-            unsafe {
-                let a = vld1q_f32(A[i][j..].as_ptr());
-                let b = vld1q_f32(B[i][j..].as_ptr());
-                let c = vsubq_f32(a, b);
-                vst1q_f32(C[i][j..].as_mut_ptr(), c);
+            if !A[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
+                || !B[i][j..j + 4].iter().all(|f| f.lt(&1e-10f32))
+            {
+                unsafe {
+                    let a = vld1q_f32(A[i][j..].as_ptr());
+                    let b = vld1q_f32(B[i][j..].as_ptr());
+                    let c = vsubq_f32(a, b);
+                    vst1q_f32(C[i][j..].as_mut_ptr(), c);
+                }
+            } else {
+                break 'outer;
             }
         }
     }
@@ -245,13 +260,19 @@ fn sub(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
 
     let n = A.len();
     let mut C = vec![vec![0.0; n]; n];
-    for i in 0..n {
+    'outer: for i in 0..n {
         for j in (0..n).step_by(8) {
-            unsafe {
-                let a = _mm256_loadu_ps(A[i][j..].as_ptr());
-                let b = _mm256_loadu_ps(B[i][j..].as_ptr());
-                let c = _mm256_sub_ps(a, b);
-                _mm256_storeu_ps(C[i][j..].as_mut_ptr(), c);
+            if !A[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
+                || !B[i][j..j + 8].iter().all(|f| f.lt(&1e-10f32))
+            {
+                unsafe {
+                    let a = _mm256_loadu_ps(A[i][j..j + 8].as_ptr());
+                    let b = _mm256_loadu_ps(B[i][j..j + 8].as_ptr());
+                    let c = _mm256_sub_ps(a, b);
+                    _mm256_storeu_ps(C[i][j..j + 8].as_mut_ptr(), c);
+                }
+            } else {
+                break 'outer;
             }
         }
     }
@@ -373,8 +394,19 @@ mod tests {
     }
     #[test]
     fn test_strassens_algorithm_large() {
-        let A = generate(1024, 1024);
-        let B = generate(1024, 1024);
+        let A = generate(4096, 4096);
+        let B = generate(4096, 4096);
+        let expected_result = generate(10, 10);
+        let result = strassens(&A, &B);
+
+        assert_eq!(result.len(), 4096,);
+        assert_eq!(result[0].len(), 4096,);
+        assert!(result.iter().all(|v| v.iter().all(|f| f.eq(&4096.0f32,))));
+    }
+    #[test]
+    fn test_strassens_algorithm_use_case() {
+        let A = generate(80, 201);
+        let B = generate(201, 3000);
         let expected_result = generate(10, 10);
         let result = strassens(&A, &B);
         assert_eq!(result, expected_result,);
