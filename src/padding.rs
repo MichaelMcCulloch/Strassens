@@ -1,3 +1,5 @@
+use crate::strassens::Matrix;
+
 pub(crate) fn pad(
     matrix_1: &Vec<Vec<f32>>,
     matrix_2: &Vec<Vec<f32>>,
