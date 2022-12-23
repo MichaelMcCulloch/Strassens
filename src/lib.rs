@@ -16,7 +16,7 @@ mod tests {
         for _ in 0..x {
             let mut row = Vec::with_capacity(y);
             for _ in 0..y {
-                row.push(1.);
+                row.push(1.1);
             }
             result.push(row);
         }

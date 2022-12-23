@@ -38,14 +38,11 @@ pub(crate) fn strassens_matmul(A: &Vec<Vec<f32>>, B: &Vec<Vec<f32>>) -> Vec<Vec<
 
 pub(crate) fn strassens(A: &Matrix, B: &Matrix) -> Matrix {
     match (A, B) {
-        (Matrix::Zero, Matrix::Zero) => Matrix::Zero,
-        (Matrix::Matrix(_), Matrix::Zero) => Matrix::Zero,
-        (Matrix::Zero, Matrix::Matrix(_)) => Matrix::Zero,
+        (Matrix::Zero, Matrix::Zero)
+        | (Matrix::Matrix(_), Matrix::Zero)
+        | (Matrix::Zero, Matrix::Matrix(_)) => Matrix::Zero,
         (Matrix::Matrix(A), Matrix::Matrix(B)) => {
             let n = A.len();
-
-            // BASE CASE: If the matrices are smaller than 256x256, use a nested loop to calculate
-            // the dot product of the two matrices
 
             if n <= 512 {
                 let mut C = vec![vec![0.0; n]; n];
@@ -59,10 +56,7 @@ pub(crate) fn strassens(A: &Matrix, B: &Matrix) -> Matrix {
                 return Matrix::Matrix(C);
             }
 
-            // Step 2: Partition A, B, and C into n/2 x n/2 submatrices
             let (A11, A12, A21, A22, B11, B12, B21, B22) = partition(A, B);
-
-            // Step 3: Define intermediate matrices
 
             let (M1, (M2, (M3, (M4, (M5, (M6, (M7))))))) = rayon::join(
                 || strassens(&add(&A11, &A22), &add(&B11, &B22)),
@@ -104,7 +98,6 @@ pub(crate) fn strassens(A: &Matrix, B: &Matrix) -> Matrix {
                 },
             );
 
-            // Step 4: Compute the submatrices of the result matrix
             let C11 = add(&sub(&add(&M1, &M4), &M5), &M7);
             let C12 = add(&M3, &M5);
             let C21 = add(&M2, &M4);
