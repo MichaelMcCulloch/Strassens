@@ -2,6 +2,7 @@ use crate::{
     arithmetic::{add, sub},
     padding::pad,
     partition::{merge, partition},
+    unrolled_mult::long_mult,
 };
 
 pub enum Matrix {
@@ -44,16 +45,20 @@ pub(crate) fn strassens(A: &Matrix, B: &Matrix) -> Matrix {
         (Matrix::Matrix(A), Matrix::Matrix(B)) => {
             let n = A.len();
 
-            if n <= 512 {
-                let mut C = vec![vec![0.0; n]; n];
-                for i in 0..n {
-                    for j in 0..n {
-                        for k in 0..n {
+            if n < 8 {
+                let mut C = vec![vec![0.0; 512]; 512];
+                for i in 0..512 {
+                    for j in 0..512 {
+                        for k in 0..512 {
                             C[i][j] += A[i][k] * B[k][j];
                         }
                     }
                 }
                 return Matrix::Matrix(C);
+            }
+
+            if n <= 512 {
+                return Matrix::Matrix(long_mult(A, B));
             }
 
             let (A11, A12, A21, A22, B11, B12, B21, B22) = partition(A, B);
